@@ -1,0 +1,105 @@
+---
+title: "E-commerce - R"
+author: "Christopher Hughes"
+date: "27 February 2017"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+### 1. Load packages for analysis
+
+```{r, warning=FALSE, echo=FALSE, message=FALSE}
+library(dplyr)
+library(ggmap)
+library(dplyr)
+library(stringr)
+library(ggplot2)
+library(plotly)
+```
+
+### 2. Load data
+
+```{r}
+## setwd to local directory containing data
+setwd("C:/Users/bre52623/Documents/Miscellaneous/ecom/DS_analytics_test_2017/")
+
+dod <- read.csv("demand_order_data.csv")
+ud <- read.csv("user_data.csv")
+```
+
+### 3. Exercises
+
+#### a) Produce a visualisation of the difference in conversion rate by age band:
+
+```{r}
+all_data <- merge(x = dod, y = ud, by.x = "user_id", by.y = "user_id")
+
+n_present <- function(x) sum(!(is.na(x)))
+
+age_conv <- all_data %>%
+  group_by(age) %>%
+  summarise(conversion = n_present(order_id)/n())
+
+p <- plot_ly(x = age_conv$age, y = age_conv$conversion, type = "bar")
+p
+```
+
+#### b) Which time of day do users make the most demands?
+
+```{r}
+
+#a <- as.Date(all_data$demand_DATE)
+all_data$hour <- format(strptime(all_data$demand_DATE, "%Y-%m-%d %H:%M:%S"), "%H")
+
+ggplotly(ggplot(all_data, aes(as.numeric(hour))) + geom_histogram(aes(fill = hour)))
+
+hours_by_age <- table(all_data$hour)
+
+hours_by_age[which(hours_by_age == max(hours_by_age))]
+```
+
+#### c) Is this the same across age bands?
+
+```{r}
+ggplotly(qplot(hour, data = all_data, geom = "bar") + facet_wrap(~age) + theme(axis.text.x = element_blank()))
+
+### Finding the max value for each
+
+max_hours <- all_data %>%
+  group_by(hour, age) %>%
+  summarize(hour_count = n()) %>%
+  group_by(age) %>%
+  filter(hour_count == max(hour_count)) %>%
+  arrange(age)
+  
+max_hours
+```
+
+#### d) Location data (Bonus points) Find a way of visualising where Flubit demands are being made from. (Hint. Freemaptools and Wikipedia both have good postcode lookup tables)
+
+```{r}
+
+# Postcodes from Freemaptools
+pc_list <- read.csv("C:/Users/bre52623/Documents/Data/ukpostcodes.csv")
+
+# Clean postcodes in data and from Freemaptools for best matching
+pc_list <- pc_list %>%
+  mutate(postcode = tolower(gsub(pattern = " ", replacement = "", x = postcode)))
+
+all_data <- all_data %>%
+  mutate(postcode = tolower(gsub(pattern = " ", replacement = "", x = postcode)))
+
+# Join geographical data by postcode
+where <- all_data %>%
+  select(postcode) %>%
+  left_join(y = pc_list, by = "postcode")
+
+# Take complete cases
+where_comp <- where[complete.cases(where),]
+
+# Place chose in centre of UK and map produced.
+United_K <- get_map("Aysgarth", zoom = 6)
+ggmap(United_K) + geom_point(data = where_comp, aes(x = longitude, y = latitude)
+                             , alpha = 0.05, colour = "black", size = 3)
+```
